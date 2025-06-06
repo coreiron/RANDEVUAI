@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users collection - kullanıcılar kendi profillerini okuyabilir/yazabilir
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Shops collection - business owner'lar kendi işletmelerini yönetebilir
+    match /shops/{shopId} {
+      // Herkese okuma izni - müşteriler işletme bilgilerini görebilir
+      allow read: if true;
+      
+      // Sadece business owner'lar ve işletme sahibi yazabilir
+      allow write: if request.auth != null && 
+        (request.auth.token.role == 'business_owner' ||
+         resource.data.ownerId == request.auth.uid);
+      
+      // İşletme oluşturma - sadece business owner'lar
+      allow create: if request.auth != null && 
+        request.auth.token.role == 'business_owner';
+    }
+    
+    // Services collection - business owner'lar kendi hizmetlerini yönetebilir
+    match /services/{serviceId} {
+      allow read: if true; // Herkese okuma izni
+      allow write: if request.auth != null && 
+        (request.auth.token.role == 'business_owner' ||
+         resource.data.shopOwnerId == request.auth.uid);
+    }
+    
+    // Staff collection - business owner'lar kendi personellerini yönetebilir
+    match /staff/{staffId} {
+      allow read: if true; // Herkese okuma izni
+      allow write: if request.auth != null && 
+        (request.auth.token.role == 'business_owner' ||
+         resource.data.shopOwnerId == request.auth.uid);
+    }
+    
+    // Appointments collection - randevu yönetimi
+    match /appointments/{appointmentId} {
+      // Kullanıcılar kendi randevularını görebilir
+      // Business owner'lar kendi işletmelerinin randevularını görebilir
+      allow read: if request.auth != null && 
+        (resource.data.userId == request.auth.uid ||
+         resource.data.shopOwnerId == request.auth.uid ||
+         request.auth.token.role == 'business_owner');
+      
+      // Kullanıcılar randevu oluşturabilir
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId;
+      
+      // Kullanıcılar kendi randevularını güncelleyebilir
+      // Business owner'lar işletmelerinin randevularını güncelleyebilir
+      allow update: if request.auth != null && 
+        (resource.data.userId == request.auth.uid ||
+         resource.data.shopOwnerId == request.auth.uid ||
+         request.auth.token.role == 'business_owner');
+      
+      // Sadece randevu sahibi iptal edebilir
+      allow delete: if request.auth != null && 
+        resource.data.userId == request.auth.uid;
+    }
+    
+    // Reviews collection - değerlendirmeler
+    match /reviews/{reviewId} {
+      allow read: if true; // Herkese okuma izni
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId;
+      allow update, delete: if request.auth != null && 
+        resource.data.userId == request.auth.uid;
+    }
+    
+    // Messages collection - mesajlaşma
+    match /messages/{messageId} {
+      // Sadece mesaj gönderen ve alan okuyabilir
+      allow read: if request.auth != null && 
+        (resource.data.senderId == request.auth.uid ||
+         resource.data.recipientId == request.auth.uid);
+      
+      // Kullanıcılar mesaj gönderebilir
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.senderId;
+      
+      // Sadece gönderen güncelleyebilir
+      allow update: if request.auth != null && 
+        resource.data.senderId == request.auth.uid;
+    }
+    
+    // Notifications collection - bildirimler
+    match /notifications/{notificationId} {
+      // Sadece bildirim sahibi okuyabilir
+      allow read: if request.auth != null && 
+        resource.data.userId == request.auth.uid;
+      
+      // Sistem veya business owner'lar bildirim oluşturabilir
+      allow create: if request.auth != null;
+      
+      // Sadece bildirim sahibi güncelleyebilir (okundu işaretleme için)
+      allow update: if request.auth != null && 
+        resource.data.userId == request.auth.uid;
+    }
+    
+    // Favorites collection - favoriler
+    match /favorites/{favoriteId} {
+      // Sadece kullanıcı kendi favorilerini görebilir
+      allow read, write: if request.auth != null && 
+        resource.data.userId == request.auth.uid;
+      
+      // Favori ekleme
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId;
+    }
+    
+    // Categories collection - kategoriler (sadece okuma)
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if request.auth != null && 
+        request.auth.token.role == 'admin';
+    }
+  }
+} 

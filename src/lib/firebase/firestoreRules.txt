@@ -1,0 +1,191 @@
+
+// Firebase Firestore Security Rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Utility functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isShopOwner(shopId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/shops/$(shopId)) &&
+        get(/databases/$(database)/documents/shops/$(shopId)).data.ownerId == request.auth.uid;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+    
+    // Users collection rules
+    match /users/{userId} {
+      // Users can read and update their own profiles
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Shops collection rules
+    match /shops/{shopId} {
+      // Anyone can read shop data
+      allow read: if true;
+      // Only shop owner or admin can write
+      allow create: if isAuthenticated();
+      allow update, delete: if isShopOwner(shopId) || isAdmin();
+      
+      // Nested collections (if any)
+      match /gallery/{imageId} {
+        allow read: if true;
+        allow write: if isShopOwner(shopId) || isAdmin();
+      }
+    }
+    
+    // Services collection rules
+    match /services/{serviceId} {
+      // Anyone can read service data
+      allow read: if true;
+      // Only shop owner or admin can write
+      allow create: if isAuthenticated() && 
+        isShopOwner(request.resource.data.shopId);
+      allow update, delete: if 
+        isShopOwner(resource.data.shopId) || 
+        isAdmin();
+    }
+    
+    // Staff collection rules
+    match /staff/{staffId} {
+      // Anyone can read staff data
+      allow read: if true;
+      // Only shop owner or admin can write
+      allow create: if isAuthenticated() && 
+        isShopOwner(request.resource.data.shopId);
+      allow update, delete: if 
+        isShopOwner(resource.data.shopId) || 
+        isAdmin();
+    }
+    
+    // Appointments collection rules
+    match /appointments/{appointmentId} {
+      // Customer can read their own appointments
+      // Shop owner can read appointments for their shop
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.userId) || 
+        isShopOwner(resource.data.shopId) ||
+        isAdmin()
+      );
+      
+      // Customer can create appointments
+      allow create: if isAuthenticated() && 
+        isOwner(request.resource.data.userId);
+      
+      // Customer can update limited fields, shop owner can update all fields
+      allow update: if isAuthenticated() && (
+        (isOwner(resource.data.userId) && 
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['notes', 'status'])) ||
+        isShopOwner(resource.data.shopId) ||
+        isAdmin()
+      );
+      
+      // Only shop owner or admin can delete
+      allow delete: if 
+        isShopOwner(resource.data.shopId) || 
+        isAdmin();
+    }
+    
+    // Reviews collection rules
+    match /reviews/{reviewId} {
+      // Anyone can read published reviews
+      allow read: if resource.data.isPublished == true || 
+        isOwner(resource.data.userId) || 
+        isShopOwner(resource.data.shopId) ||
+        isAdmin();
+      
+      // Only authenticated users who have an appointment with the shop can create
+      allow create: if isAuthenticated() && 
+        isOwner(request.resource.data.userId);
+      
+      // Users can only update their own reviews
+      // Shop owners can only update the reply field
+      allow update: if isAuthenticated() && (
+        (isOwner(resource.data.userId) && 
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['comment', 'rating', 'images', 'updatedAt'])) ||
+        (isShopOwner(resource.data.shopId) && 
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['reply', 'updatedAt'])) ||
+        isAdmin()
+      );
+      
+      // Only admin can delete reviews
+      allow delete: if isAdmin();
+    }
+    
+    // Messages collection rules
+    match /messages/{messageId} {
+      // Only sender and receiver can read messages
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.senderId) || 
+        isOwner(resource.data.receiverId) ||
+        isShopOwner(resource.data.shopId) ||
+        isAdmin()
+      );
+      
+      // Only authenticated users can create messages
+      allow create: if isAuthenticated() && 
+        isOwner(request.resource.data.senderId);
+      
+      // Only receiver can update (to mark as read)
+      allow update: if isAuthenticated() && 
+        isOwner(resource.data.receiverId) && 
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['read', 'readAt']);
+      
+      // Only admin can delete messages
+      allow delete: if isAdmin();
+    }
+    
+    // Notifications collection rules
+    match /notifications/{notificationId} {
+      // Only the target user can read their notifications
+      allow read: if isAuthenticated() && 
+        isOwner(resource.data.userId);
+      
+      // Only the system and admin can create notifications
+      allow create: if isAdmin();
+      
+      // Users can only mark notifications as read
+      allow update: if isAuthenticated() && 
+        isOwner(resource.data.userId) && 
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['read', 'readAt']);
+      
+      // Only admin can delete notifications
+      allow delete: if isAdmin() || 
+        (isAuthenticated() && isOwner(resource.data.userId));
+    }
+    
+    // Promocodes collection rules
+    match /promocodes/{promocodeId} {
+      // Anyone can read active promocodes
+      allow read: if isAuthenticated() && resource.data.isActive == true;
+      
+      // Only shop owner or admin can write
+      allow create, update, delete: if 
+        isAuthenticated() && (
+          (request.resource.data.shopId && 
+           isShopOwner(request.resource.data.shopId)) ||
+          isAdmin()
+        );
+    }
+  }
+}
