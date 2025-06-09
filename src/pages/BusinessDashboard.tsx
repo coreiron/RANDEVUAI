@@ -199,13 +199,64 @@ const BusinessDashboard = () => {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-4 mb-4">
-            {selectedShop && shops.find(s => s.id === selectedShop)?.photoURL && (
-              <img
-                src={shops.find(s => s.id === selectedShop)?.photoURL}
-                alt={shops.find(s => s.id === selectedShop)?.name}
-                className="w-16 h-16 rounded-lg object-cover border-2 border-white shadow-md"
-              />
-            )}
+            {(() => {
+              const currentShop = shops.find(s => s.id === selectedShop);
+
+              // Kapsamlı resim URL kontrolü
+              const getShopImageUrl = () => {
+                if (!currentShop) return null;
+
+                const possibleImages = [
+                  currentShop.photoURL,
+                  currentShop.images?.main,
+                  currentShop.images?.logo,
+                  currentShop.images?.thumbnail,
+                  currentShop.image,
+                  currentShop.imageUrl,
+                  currentShop.mainImage,
+                  currentShop.logo,
+                  currentShop.avatar,
+                  currentShop.picture,
+                  currentShop.photo
+                ];
+
+                // İlk geçerli resim URL'sini bul
+                const validImage = possibleImages.find(url =>
+                  url &&
+                  typeof url === 'string' &&
+                  url.trim() !== '' &&
+                  url !== '/placeholder.svg' &&
+                  !url.includes('undefined') &&
+                  !url.includes('null') &&
+                  (url.startsWith('http') || url.startsWith('/') || url.startsWith('data:'))
+                );
+
+                console.log(`🖼️ BusinessDashboard - Shop ${currentShop.name} image resolution:`, {
+                  shopId: currentShop.id,
+                  availableImages: possibleImages.filter(Boolean),
+                  selectedImage: validImage || null
+                });
+
+                return validImage;
+              };
+
+              const shopImageUrl = getShopImageUrl();
+
+              return shopImageUrl ? (
+                <img
+                  src={shopImageUrl}
+                  alt={currentShop?.name}
+                  className="w-16 h-16 rounded-lg object-cover border-2 border-white shadow-md"
+                  onError={(e) => {
+                    console.log(`❌ BusinessDashboard image failed to load:`, shopImageUrl);
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                  onLoad={() => {
+                    console.log(`✅ BusinessDashboard image loaded successfully:`, shopImageUrl);
+                  }}
+                />
+              ) : null;
+            })()}
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
                 İşletme Paneli

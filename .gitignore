@@ -23,20 +23,5 @@ dist-ssr
 *.sln
 *.sw?
 
-# Firebase
-.firebase/
-**/serviceAccountKey.json
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Firebase functions
-**/functions/lib/
-**/functions/node_modules/
-**/functions/.env
-
-# Other sensitive files
-firebase-adminsdk-*.json
-service-account-*.json
+# Firebase service account keys
+backend/functions/serviceAccountKey.json

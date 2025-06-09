@@ -29,8 +29,43 @@ const ShopCard: React.FC<ShopCardProps> = ({ shop }) => {
     return `${hours.open} - ${hours.close}`;
   };
 
-  // Doğru resim URL'sini al
-  const shopImageUrl = shop.photoURL || shop.images?.main || shop.image || shop.imageUrl || "/placeholder.svg";
+  // Kapsamlı resim URL kontrolü
+  const getShopImageUrl = () => {
+    const possibleImages = [
+      shop.photoURL,
+      shop.images?.main,
+      shop.images?.logo,
+      shop.images?.thumbnail,
+      shop.image,
+      shop.imageUrl,
+      shop.mainImage,
+      shop.logo,
+      shop.avatar,
+      shop.picture,
+      shop.photo
+    ];
+
+    // İlk geçerli resim URL'sini bul
+    const validImage = possibleImages.find(url =>
+      url &&
+      typeof url === 'string' &&
+      url.trim() !== '' &&
+      url !== '/placeholder.svg' &&
+      !url.includes('undefined') &&
+      !url.includes('null') &&
+      (url.startsWith('http') || url.startsWith('/') || url.startsWith('data:'))
+    );
+
+    console.log(`🖼️ ShopCard - Shop ${shop.name} image resolution:`, {
+      shopId: shop.id,
+      availableImages: possibleImages.filter(Boolean),
+      selectedImage: validImage || '/placeholder.svg'
+    });
+
+    return validImage || '/placeholder.svg';
+  };
+
+  const shopImageUrl = getShopImageUrl();
 
   // Rating değerini düzgün şekilde al
   const rating = typeof shop.rating === 'number'

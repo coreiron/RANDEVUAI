@@ -9,30 +9,28 @@ import {
   sendPasswordResetEmail,
   EmailAuthProvider,
   reauthenticateWithCredential,
-  applyActionCode,
-  connectAuthEmulator,
-  reload
+  applyActionCode
 } from "firebase/auth";
-import { getFirestore, getDoc, doc, connectFirestoreEmulator } from "firebase/firestore";
+import { getFirestore, getDoc, doc } from "firebase/firestore";
 import { toast } from '@/components/ui/sonner';
-import { getStorage, ref, uploadBytes, getDownloadURL, connectStorageEmulator } from 'firebase/storage';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { ensureBusinessUserType } from './services/profileService';
 
 // Firebase configuration
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyByE0pFGgxjWaHgAfmGwHPO2Tz-5QqKr6M",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "randevuai-b0249.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "randevuai-b0249",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "randevuai-b0249.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1021924999982",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:1021924999982:web:5ad5bf76c8eb49de88d81e",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-QJ8D57Q4L7"
+  apiKey: "AIzaSyAZQ15TayS0BWaP6viKwGWY1v3O314iAkg",
+  authDomain: "randevuai-b0249.firebaseapp.com",
+  projectId: "randevuai-b0249",
+  storageBucket: "randevuai-b0249.firebasestorage.app",
+  messagingSenderId: "621524791942",
+  appId: "1:621524791942:web:fd5a990fd6a4c1cd649707",
+  measurementId: "G-GS3PSFCPBS"
 };
 
 // Initialize Firebase once and export the instances
 console.log("Initializing Firebase");
-const app = initializeApp(firebaseConfig);
+export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
@@ -111,60 +109,61 @@ export const registerUser = async (email: string, password: string, displayName:
 
 export const loginUser = async (email: string, password: string) => {
   try {
-    console.log("Login attempt for email:", email);
+    console.log("Starting login process:", { email });
 
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
 
-    if (!user) {
-      throw new Error("User not found");
-    }
+    // Kullanıcı tipini kontrol et
+    const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+    if (userDoc.exists()) {
+      const userData = userDoc.data();
+      console.log("User type:", userData.userType);
 
-    console.log("Login successful for user:", user.uid);
-    console.log("Email verified:", user.emailVerified);
-
-    const tokenResult = await user.getIdTokenResult();
-    console.log("Custom claims:", tokenResult.claims);
-
-    const isBusinessOwner = tokenResult.claims.role === 'business_owner';
-    console.log("Is business owner:", isBusinessOwner);
-
-    if (isBusinessOwner) {
-      try {
-        await sendEmailVerification(user);
-        console.log("Email verification sent for business user");
-      } catch (emailError) {
-        console.log("Email verification could not be sent:", emailError);
+      // İşletme hesabı ise userType'ı güncelle
+      if (userData.userType === 'business') {
+        await ensureBusinessUserType();
       }
     }
 
-    return {
-      success: true,
-      user,
-      emailVerified: user.emailVerified,
-      isBusinessOwner
-    };
-  } catch (error: any) {
-    console.error("Login error:", error);
-    let errorMessage = "Giriş başarısız oldu";
-
-    if (error.code === 'auth/user-not-found') {
-      errorMessage = "Bu email adresi ile kayıtlı kullanıcı bulunamadı";
-    } else if (error.code === 'auth/wrong-password') {
-      errorMessage = "Hatalı şifre";
-    } else if (error.code === 'auth/invalid-email') {
-      errorMessage = "Geçersiz email adresi";
-    } else if (error.code === 'auth/user-disabled') {
-      errorMessage = "Bu hesap devre dışı bırakılmış";
-    } else if (error.code === 'auth/too-many-requests') {
-      errorMessage = "Çok fazla başarısız giriş denemesi. Lütfen daha sonra tekrar deneyin";
-    } else if (error.code === 'auth/invalid-credential') {
-      errorMessage = "Geçersiz giriş bilgileri";
-    } else if (error.message) {
-      errorMessage = error.message;
+    // Check email verification
+    if (!userCredential.user.emailVerified) {
+      console.log("Email not verified, sending verification email");
+      await sendEmailVerification(userCredential.user);
+      toast.warning("E-posta adresiniz doğrulanmamış. Yeni doğrulama bağlantısı gönderildi.");
+    } else {
+      toast.success("Giriş başarılı!");
     }
 
-    throw new Error(errorMessage);
+    console.log("Login successful:", userCredential.user.uid);
+    return userCredential.user;
+  } catch (error: any) {
+    console.error("Login error:", error);
+
+    if (error.code === 'auth/invalid-email') {
+      toast.error('Geçersiz e-posta adresi');
+      throw new Error('Geçersiz e-posta adresi');
+    } else if (error.code === 'auth/user-not-found') {
+      toast.error('Bu e-posta adresiyle kayıtlı hesap bulunamadı');
+      throw new Error('Bu e-posta adresiyle kayıtlı hesap bulunamadı');
+    } else if (error.code === 'auth/wrong-password') {
+      toast.error('Hatalı şifre');
+      throw new Error('Hatalı şifre');
+    } else if (error.code === 'auth/network-request-failed') {
+      toast.error('Ağ hatası, lütfen internet bağlantınızı kontrol edin');
+      throw new Error('Ağ hatası, lütfen internet bağlantınızı kontrol edin');
+    } else if (error.code === 'auth/too-many-requests') {
+      toast.error('Çok fazla başarısız giriş denemesi. Lütfen daha sonra tekrar deneyin');
+      throw new Error('Çok fazla başarısız giriş denemesi. Lütfen daha sonra tekrar deneyin');
+    } else if (error.code === 'auth/user-disabled') {
+      toast.error('Bu hesap devre dışı bırakılmış');
+      throw new Error('Bu hesap devre dışı bırakılmış');
+    } else if (error.code === 'auth/api-key-not-valid') {
+      toast.error('API anahtarı geçersiz. Firebase yapılandırmanızı kontrol edin');
+      throw new Error('API anahtarı geçersiz. Firebase yapılandırmanızı kontrol edin');
+    } else {
+      toast.error(error.message || "Giriş sırasında bir hata oluştu");
+      throw new Error(error.message || "Giriş sırasında bir hata oluştu");
+    }
   }
 };
 
@@ -228,12 +227,17 @@ export const resendVerificationEmail = async () => {
   }
 };
 
-export const checkEmailVerification = async (): Promise<boolean> => {
-  const user = auth.currentUser;
-  if (!user) return false;
+export const checkEmailVerification = async () => {
+  try {
+    const user = auth.currentUser;
+    if (!user) return false;
 
-  await reload(user);
-  return user.emailVerified;
+    await user.reload();
+    return user.emailVerified;
+  } catch (error) {
+    console.error("Check email verification error:", error);
+    return false;
+  }
 };
 
 // Password reset functions
@@ -311,5 +315,3 @@ export const onForegroundMessage = (callback: (payload: any) => void) => {
   const messaging = getMessaging();
   onMessage(messaging, callback);
 };
-
-export default app;

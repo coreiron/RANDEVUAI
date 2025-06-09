@@ -103,13 +103,19 @@ service cloud.firestore {
     
     // Favorites collection - favoriler
     match /favorites/{favoriteId} {
-      // Sadece kullanıcı kendi favorilerini görebilir
+      // Kullanıcılar kendi favorilerini okuyabilir ve yazabilir
       allow read, write: if request.auth != null && 
-        resource.data.userId == request.auth.uid;
+        (resource == null || resource.data.userId == request.auth.uid);
       
-      // Favori ekleme
+      // Favori ekleme - kullanıcı kendi favori dökümanını oluşturabilir
       allow create: if request.auth != null && 
         request.auth.uid == request.resource.data.userId;
+    }
+    
+    // User favorites subcollection - kullanıcının favoriler alt koleksiyonu
+    match /users/{userId}/favorites/{favoriteId} {
+      // Kullanıcı kendi favorilerini okuyabilir ve yazabilir
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     
     // Categories collection - kategoriler (sadece okuma)

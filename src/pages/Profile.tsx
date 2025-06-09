@@ -120,16 +120,47 @@ const Profile = () => {
                 </div>
               )}
 
-              {isBusiness && userShops.length > 0 && userShops[0].photoURL && (
-                <div className="flex flex-col items-center">
-                  <p className="text-xs text-gray-500 mb-1">İşletme</p>
-                  <img
-                    src={userShops[0].photoURL}
-                    alt={userShops[0].name}
-                    className="w-16 h-16 rounded-lg object-cover border-2 border-blue-200"
-                  />
-                </div>
-              )}
+              {isBusiness && userShops.length > 0 && (() => {
+                const shop = userShops[0];
+                const possibleImages = [
+                  shop.photoURL,
+                  shop.images?.main,
+                  shop.images?.logo,
+                  shop.images?.thumbnail,
+                  shop.image,
+                  shop.imageUrl,
+                  shop.mainImage,
+                  shop.logo,
+                  shop.avatar,
+                  shop.picture,
+                  shop.photo
+                ];
+
+                const validImage = possibleImages.find(url =>
+                  url &&
+                  typeof url === 'string' &&
+                  url.trim() !== '' &&
+                  url !== '/placeholder.svg' &&
+                  !url.includes('undefined') &&
+                  !url.includes('null') &&
+                  (url.startsWith('http') || url.startsWith('/') || url.startsWith('data:'))
+                );
+
+                return validImage ? (
+                  <div className="flex flex-col items-center">
+                    <p className="text-xs text-gray-500 mb-1">İşletme</p>
+                    <img
+                      src={validImage}
+                      alt={shop.name}
+                      className="w-16 h-16 rounded-lg object-cover border-2 border-blue-200"
+                      onError={(e) => {
+                        console.log(`❌ Profile business image failed to load:`, validImage);
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                ) : null;
+              })()}
             </div>
 
             <div className="flex-1">
@@ -261,13 +292,47 @@ const Profile = () => {
                   {userShops.map((shop: any, index: number) => (
                     <div key={shop.id} className="border rounded-lg p-4">
                       <div className="flex items-start gap-4">
-                        {shop.photoURL && (
-                          <img
-                            src={shop.photoURL}
-                            alt={shop.name}
-                            className="w-20 h-20 object-cover rounded-lg"
-                          />
-                        )}
+                        {(() => {
+                          const possibleImages = [
+                            shop.photoURL,
+                            shop.images?.main,
+                            shop.images?.logo,
+                            shop.images?.thumbnail,
+                            shop.image,
+                            shop.imageUrl,
+                            shop.mainImage,
+                            shop.logo,
+                            shop.avatar,
+                            shop.picture,
+                            shop.photo
+                          ];
+
+                          const validImage = possibleImages.find(url =>
+                            url &&
+                            typeof url === 'string' &&
+                            url.trim() !== '' &&
+                            url !== '/placeholder.svg' &&
+                            !url.includes('undefined') &&
+                            !url.includes('null') &&
+                            (url.startsWith('http') || url.startsWith('/') || url.startsWith('data:'))
+                          );
+
+                          return validImage ? (
+                            <img
+                              src={validImage}
+                              alt={shop.name}
+                              className="w-20 h-20 object-cover rounded-lg"
+                              onError={(e) => {
+                                console.log(`❌ Profile business detail image failed to load:`, validImage);
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center">
+                              <Building2 className="h-8 w-8 text-gray-400" />
+                            </div>
+                          );
+                        })()}
                         <div className="flex-1">
                           <h3 className="font-semibold text-lg">{shop.name}</h3>
                           <p className="text-gray-600 mb-2">{shop.description}</p>

@@ -88,19 +88,29 @@ const ShopDetail = () => {
       console.log("🏪 Fetching shop details for:", shopId);
       const shopData = await getShopDetails(shopId);
       console.log("🏪 Shop data received:", shopData);
-      console.log("🖼️ Shop images:", {
+
+      // Resim debug bilgileri
+      console.log("🖼️ Shop image debugging:", {
+        shopName: shopData?.name,
+        shopId: shopData?.id,
+        photoURL: shopData?.photoURL,
         images: shopData?.images,
-        image: shopData?.image,
         imageUrl: shopData?.imageUrl,
-        photoURL: shopData?.photoURL
-      });
-      console.log("🖼️ Images detail:", {
-        'images.main': shopData?.images?.main,
-        'images.gallery': shopData?.images?.gallery,
-        'images type': typeof shopData?.images,
-        'image': shopData?.image,
-        'imageUrl': shopData?.imageUrl,
-        'photoURL': shopData?.photoURL
+        image: shopData?.image,
+        mainImage: shopData?.mainImage,
+        allImageFields: {
+          photoURL: shopData?.photoURL,
+          'images.main': shopData?.images?.main,
+          'images.logo': shopData?.images?.logo,
+          'images.thumbnail': shopData?.images?.thumbnail,
+          imageUrl: shopData?.imageUrl,
+          image: shopData?.image,
+          mainImage: shopData?.mainImage,
+          logo: shopData?.logo,
+          avatar: shopData?.avatar,
+          picture: shopData?.picture,
+          photo: shopData?.photo
+        }
       });
 
       if (shopData && shopData.id) {
@@ -174,10 +184,16 @@ const ShopDetail = () => {
     if (!currentUser) return;
 
     try {
+      console.log("🔍 Checking favorite status for shop:", shopId, "user:", currentUser.uid);
       const favoriteStatus = await isShopFavorite(currentUser.uid, shopId);
+      console.log("✅ Favorite status result:", favoriteStatus);
       setIsFavorite(favoriteStatus);
     } catch (error) {
-      console.error("Error checking favorite status:", error);
+      console.error("❌ Error checking favorite status:", error);
+      // Firebase permission hatası durumunda favorisini false olarak kabul et
+      setIsFavorite(false);
+      // Sadece geliştiriciler için hata göster, kullanıcıyı rahatsız etme
+      console.warn("Favori durumu kontrol edilemedi, varsayılan olarak false kabul ediliyor");
     }
   };
 
@@ -404,7 +420,58 @@ const ShopDetail = () => {
     ? { average: shop.rating, count: 0 }
     : shop.rating || { average: 0, count: 0 };
 
-  const shopImageUrl = shop.images?.main || shop.image || shop.imageUrl || '/placeholder.svg';
+  const getShopImageUrl = () => {
+    const possibleImages = [
+      shop?.photoURL,
+      shop?.images?.main,
+      shop?.images?.logo,
+      shop?.images?.thumbnail,
+      shop?.image,
+      shop?.imageUrl,
+      shop?.mainImage,
+      shop?.logo,
+      shop?.avatar,
+      shop?.picture,
+      shop?.photo
+    ];
+
+    console.log(`🖼️ ShopDetail getShopImageUrl - All possible images:`, {
+      shopId: shop?.id,
+      shopName: shop?.name,
+      possibleImages: possibleImages.map((img, index) => ({ index, value: img })),
+      validImages: possibleImages.filter(Boolean),
+      totalPossible: possibleImages.length,
+      totalValid: possibleImages.filter(Boolean).length
+    });
+
+    // İlk geçerli resim URL'sini bul
+    const validImage = possibleImages.find(url =>
+      url &&
+      typeof url === 'string' &&
+      url.trim() !== '' &&
+      url !== '/placeholder.svg' &&
+      !url.includes('undefined') &&
+      !url.includes('null') &&
+      !url.includes('example.com') && // Test URL'lerini geçersiz kabul et
+      !url.includes('placeholder') && // Placeholder URL'lerini geçersiz kabul et
+      !url.includes('demo') && // Demo URL'lerini geçersiz kabul et
+      (url.startsWith('http') || url.startsWith('/') || url.startsWith('data:'))
+    );
+
+    const finalImage = validImage || '/placeholder.svg';
+
+    console.log(`🖼️ ShopDetail - Final image resolution:`, {
+      shopId: shop?.id,
+      shopName: shop?.name,
+      selectedImage: validImage,
+      finalImage: finalImage,
+      fallbackUsed: !validImage
+    });
+
+    return finalImage;
+  };
+
+  const shopImageUrl = getShopImageUrl();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
@@ -471,15 +538,50 @@ const ShopDetail = () => {
           </div>
         </div>
 
-        {shop?.photoURL ? (
+        {shopImageUrl ? (
           <img
-            src={shop.photoURL}
+            src={shopImageUrl}
             alt={shop.name}
             className="w-full h-56 object-cover rounded-lg mb-6 border"
+            onError={(e) => {
+              console.log(`❌ ShopDetail main image failed to load:`, {
+                attempted: shopImageUrl,
+                shopName: shop?.name,
+                shopId: shop?.id
+              });
+              const imgElement = e.target as HTMLImageElement;
+              if (imgElement.src !== '/placeholder.svg') {
+                console.log("🔄 Attempting to fallback to placeholder.svg");
+                imgElement.src = '/placeholder.svg';
+              } else {
+                console.log("🚫 Even placeholder.svg failed, showing fallback div");
+                // Even placeholder failed, hide the image
+                imgElement.style.display = 'none';
+                // Show a fallback div
+                const parent = imgElement.parentElement;
+                if (parent && !parent.querySelector('.fallback-image')) {
+                  const fallbackDiv = document.createElement('div');
+                  fallbackDiv.className = 'fallback-image w-full h-56 bg-gray-100 rounded-lg mb-6 border flex items-center justify-center text-gray-400';
+                  fallbackDiv.innerHTML = '<span class="text-4xl">🖼️</span><span class="ml-2">Resim Yüklenemedi</span>';
+                  parent.appendChild(fallbackDiv);
+                }
+              }
+            }}
+            onLoad={(e) => {
+              const imgElement = e.target as HTMLImageElement;
+              console.log(`✅ ShopDetail main image loaded successfully:`, {
+                actualLoaded: imgElement.src, // Gerçekte yüklenen URL
+                originalAttempt: shopImageUrl, // İlk denenen URL
+                shopName: shop?.name,
+                shopId: shop?.id,
+                isPlaceholder: imgElement.src.includes('placeholder.svg')
+              });
+            }}
           />
         ) : (
           <div className="w-full h-56 bg-gray-100 rounded-lg mb-6 flex items-center justify-center text-gray-400 border">
             <span className="text-4xl">🖼️</span>
+            <span className="ml-2">Resim Bulunamadı</span>
           </div>
         )}
 
@@ -546,8 +648,8 @@ const ShopDetail = () => {
 
                         {services.length > 0 ? (
                           <div className="grid gap-4">
-                            {services.map((service) => (
-                              <Card key={service.id} className="border border-gray-200">
+                            {services.map((service, index) => (
+                              <Card key={service.id || `service-${index}`} className="border border-gray-200">
                                 <CardContent className="p-4">
                                   <div className="flex justify-between items-start">
                                     <div className="flex-1">
@@ -589,8 +691,8 @@ const ShopDetail = () => {
                     <TabsContent value="staff" className="mt-0">
                       <div className="space-y-4">
                         {staff.length > 0 ? (
-                          staff.map((staffMember) => (
-                            <Card key={staffMember.id} className="border border-gray-200">
+                          staff.map((staffMember, index) => (
+                            <Card key={staffMember.id || `staff-${index}`} className="border border-gray-200">
                               <CardContent className="p-4">
                                 <div className="flex items-center space-x-4">
                                   <div className="w-16 h-16 bg-gradient-to-br from-blue-400 to-purple-600 rounded-full flex items-center justify-center">
@@ -614,8 +716,8 @@ const ShopDetail = () => {
                                     )}
                                     {staffMember.specialties && staffMember.specialties.length > 0 && (
                                       <div className="flex flex-wrap gap-1 mt-2">
-                                        {staffMember.specialties.map((specialty: string, index: number) => (
-                                          <span key={index} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                                        {staffMember.specialties.map((specialty: string, specialtyIndex: number) => (
+                                          <span key={`specialty-${index}-${specialtyIndex}`} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
                                             {specialty}
                                           </span>
                                         ))}
@@ -764,8 +866,8 @@ const ShopDetail = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="any">Fark etmez</SelectItem>
-                      {staff.map((staffMember) => (
-                        <SelectItem key={staffMember.id} value={staffMember.id}>
+                      {staff.map((staffMember, index) => (
+                        <SelectItem key={staffMember.id || `staff-select-${index}`} value={staffMember.id || `staff-${index}`}>
                           {staffMember.name} {staffMember.title && `- ${staffMember.title}`}
                         </SelectItem>
                       ))}

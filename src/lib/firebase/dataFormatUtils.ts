@@ -1,4 +1,3 @@
-
 import { Timestamp } from "firebase/firestore";
 
 /**
@@ -8,7 +7,7 @@ import { Timestamp } from "firebase/firestore";
  */
 export const timestampToDate = (timestamp: any): Date => {
   if (!timestamp) return new Date();
-  
+
   if (timestamp instanceof Timestamp) {
     return timestamp.toDate();
   } else if (timestamp.seconds && timestamp.nanoseconds) {
@@ -21,7 +20,7 @@ export const timestampToDate = (timestamp: any): Date => {
   } else if (typeof timestamp === 'number') {
     return new Date(timestamp);
   }
-  
+
   // Fallback
   return new Date();
 };
@@ -35,18 +34,18 @@ export const formatRating = (rating: any): { average: number; count: number } =>
   if (!rating) {
     return { average: 0, count: 0 };
   }
-  
+
   if (typeof rating === 'number') {
     return { average: rating, count: 0 };
   }
-  
+
   if (typeof rating === 'object') {
     return {
       average: rating.average || 0,
       count: rating.count || 0
     };
   }
-  
+
   return { average: 0, count: 0 };
 };
 
@@ -56,25 +55,55 @@ export const formatRating = (rating: any): { average: number; count: number } =>
  * @returns Standartlaştırılmış images objesi
  */
 export const formatImages = (data: any): { main: string; gallery?: string[] } => {
+  // Debug için resim alanlarını loglayalım
+  console.log("🖼️ formatImages - Input data:", {
+    images: data.images,
+    photoURL: data.photoURL,
+    imageUrl: data.imageUrl,
+    image: data.image,
+    mainImage: data.mainImage,
+    logo: data.logo,
+    avatar: data.avatar,
+    picture: data.picture,
+    photo: data.photo
+  });
+
   // Eğer zaten doğru formatta ise kullan
   if (data.images && typeof data.images === 'object') {
-    return {
-      main: data.images.main || '/placeholder.svg',
+    const result = {
+      main: data.images.main || data.images.logo || data.images.thumbnail || '/placeholder.svg',
       gallery: Array.isArray(data.images.gallery) ? data.images.gallery : []
     };
+    console.log("🖼️ formatImages - Using images object:", result);
+    return result;
   }
-  
-  // Alternatif alanları kontrol et
-  if (data.imageUrl) {
-    return { main: data.imageUrl, gallery: [] };
-  }
-  
-  if (data.image) {
-    return { main: data.image, gallery: [] };
-  }
-  
-  // Varsayılan placeholder
-  return { main: '/placeholder.svg', gallery: [] };
+
+  // Tüm olası resim alanlarını kontrol et (öncelik sırasına göre)
+  const possibleImageFields = [
+    data.photoURL,
+    data.mainImage,
+    data.imageUrl,
+    data.image,
+    data.logo,
+    data.avatar,
+    data.picture,
+    data.photo
+  ];
+
+  // İlk geçerli resim URL'sini bul
+  const mainImage = possibleImageFields.find(url =>
+    url &&
+    typeof url === 'string' &&
+    url.trim() !== '' &&
+    url !== '/placeholder.svg' &&
+    !url.includes('undefined') &&
+    !url.includes('null')
+  ) || '/placeholder.svg';
+
+  const result = { main: mainImage, gallery: [] };
+  console.log("🖼️ formatImages - Result:", result);
+
+  return result;
 };
 
 /**
@@ -85,7 +114,7 @@ export const formatImages = (data: any): { main: string; gallery?: string[] } =>
  */
 export const formatFirestoreDocument = (doc: any, includeData: boolean = true): any => {
   if (!doc) return null;
-  
+
   const data = includeData ? doc.data() : {};
   const result = {
     id: doc.id,
@@ -93,14 +122,14 @@ export const formatFirestoreDocument = (doc: any, includeData: boolean = true): 
     createdAt: data.createdAt ? timestampToDate(data.createdAt) : new Date(),
     updatedAt: data.updatedAt ? timestampToDate(data.updatedAt) : new Date()
   };
-  
+
   // Özel alanları formatla
   if (data.rating) {
     result.rating = formatRating(data.rating);
   }
-  
+
   // Resim formatını standardize et
   result.images = formatImages(data);
-  
+
   return result;
 };

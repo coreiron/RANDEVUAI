@@ -1,72 +1,73 @@
-# RANDEVUAI
+# Welcome to your Lovable project
 
-Modern bir randevu yönetim sistemi. İşletmeler ve müşteriler arasında kolay randevu planlama ve yönetimi sağlar.
+## Project info
 
-## Özellikler
+**URL**: https://lovable.dev/projects/dddf27de-e4cf-42b7-a569-18c21e4b72b5
 
-### Müşteriler İçin
-- İşletme arama ve filtreleme
-- Online randevu oluşturma
-- Randevu takibi ve iptal etme
-- İşletme değerlendirme ve yorum
-- Favori işletmeler listesi
-- Mesajlaşma sistemi
+## How can I edit this code?
 
-### İşletmeler İçin
-- İşletme profili yönetimi
-- Hizmet ve personel tanımlama
-- Randevu takvimi ve yönetimi
-- Müşteri iletişimi
-- Raporlama ve analitik
-- Çalışma saatleri ayarlama
+There are several ways of editing your application.
 
-## Teknolojiler
+**Use Lovable**
 
-- **Frontend**: React 18, TypeScript, Tailwind CSS
-- **UI Components**: Radix UI, Shadcn/ui
-- **Backend**: Node.js, Express, Firebase Functions
-- **Database**: Firebase Firestore
-- **Authentication**: Firebase Auth
-- **Storage**: Firebase Storage
-- **Hosting**: Firebase Hosting
+Simply visit the [Lovable Project](https://lovable.dev/projects/dddf27de-e4cf-42b7-a569-18c21e4b72b5) and start prompting.
 
-## Kurulum
+Changes made via Lovable will be committed automatically to this repo.
 
-### Gereksinimler
-- Node.js 18+
-- npm veya yarn
-- Firebase CLI
+**Use your preferred IDE**
 
-### Frontend Kurulumu
-```bash
-npm install
+If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+
+The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+
+Follow these steps:
+
+```sh
+# Step 1: Clone the repository using the project's Git URL.
+git clone <YOUR_GIT_URL>
+
+# Step 2: Navigate to the project directory.
+cd <YOUR_PROJECT_NAME>
+
+# Step 3: Install the necessary dependencies.
+npm i
+
+# Step 4: Start the development server with auto-reloading and an instant preview.
 npm run dev
 ```
 
-### Backend Kurulumu
-```bash
-cd backend/functions
-npm install
-npm run serve
-```
+**Edit a file directly in GitHub**
 
-### Firebase Yapılandırması
-1. Firebase Console'da yeni proje oluşturun
-2. Authentication, Firestore ve Storage servislerini aktifleştirin
-3. Firebase config bilgilerini `src/lib/firebase.ts` dosyasına ekleyin
-4. Firebase rules'larını deploy edin:
-```bash
-firebase deploy --only firestore:rules
-firebase deploy --only storage
-```
+- Navigate to the desired file(s).
+- Click the "Edit" button (pencil icon) at the top right of the file view.
+- Make your changes and commit the changes.
 
-## Kullanım
+**Use GitHub Codespaces**
 
-1. Uygulamayı başlatın: `npm run dev`
-2. Tarayıcıda `http://localhost:5173` adresine gidin
-3. Yeni hesap oluşturun veya giriş yapın
-4. İşletme hesabı için özel kurulum sürecini tamamlayın
+- Navigate to the main page of your repository.
+- Click on the "Code" button (green button) near the top right.
+- Select the "Codespaces" tab.
+- Click on "New codespace" to launch a new Codespace environment.
+- Edit files directly within the Codespace and commit and push your changes once you're done.
 
-## Lisans
+## What technologies are used for this project?
 
-Bu proje MIT lisansı altında lisanslanmıştır.
+This project is built with:
+
+- Vite
+- TypeScript
+- React
+- shadcn-ui
+- Tailwind CSS
+
+## How can I deploy this project?
+
+Simply open [Lovable](https://lovable.dev/projects/dddf27de-e4cf-42b7-a569-18c21e4b72b5) and click on Share -> Publish.
+
+## Can I connect a custom domain to my Lovable project?
+
+Yes, you can!
+
+To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+
+Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
