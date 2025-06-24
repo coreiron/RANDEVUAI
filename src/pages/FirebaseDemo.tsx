@@ -15,7 +15,10 @@ import {
   clearUserAppointments,
   clearCurrentUserData,
   createBusinessAccounts,
-  simulateBusinessLogin
+  simulateBusinessLogin,
+  addAvailabilityToAllShops,
+  testAvailabilityWrite,
+  addOnlyAvailabilityToShops
 } from '@/lib/firebase/seedData';
 import { userApi } from '@/lib/api/userApi';
 
@@ -254,6 +257,70 @@ const FirebaseDemo = () => {
     }
   };
 
+  // Uygunluk test fonksiyonu
+  const handleTestAvailability = async () => {
+    setDataLoading(true);
+    try {
+      const result = await testAvailabilityWrite();
+      if (result.success) {
+        toast.success(`✅ ${result.message}`);
+      } else {
+        toast.error(`❌ Test başarısız: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Availability test hatası:', error);
+      toast.error('Test sırasında hata oluştu: ' + error);
+    } finally {
+      setDataLoading(false);
+    }
+  };
+
+  // Sadece uygunluk ekleme fonksiyonu (ULTRA HIZLI)
+  const handleAddOnlyAvailability = async () => {
+    if (!confirm('SADECE tüm işletmelere uygunluk eklemek istediğinizden emin misiniz?\n\nBu ultra hızlı versiyon, sadece uygunluk ekler, diğer hiçbir şeyi değiştirmez.')) return;
+
+    setDataLoading(true);
+    toast.info('🚀 Sadece uygunluk ekleniyor... (Ultra hızlı mod)');
+
+    try {
+      const result = await addOnlyAvailabilityToShops();
+      if (result.success) {
+        toast.success(`✅ BAŞARILI! ${result.processedShops} işletme için ${result.totalAvailability} uygunluk kaydı eklendi!`);
+        checkCollections();
+      } else {
+        toast.error(`❌ Hata: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Uygunluk ekleme hatası:', error);
+      toast.error('Uygunluk ekleme sırasında hata oluştu: ' + error);
+    } finally {
+      setDataLoading(false);
+    }
+  };
+
+  // Uygunluk ekleme fonksiyonu
+  const handleAddAvailability = async () => {
+    if (!confirm('Tüm işletmelere 2 personel, 2 hizmet ve 30 gün uygunluk eklemek istediğinizden emin misiniz?\n\nBu işlem optimized batch modda çalışacak ve çok hızlı olacak.')) return;
+
+    setDataLoading(true);
+    toast.info('🕐 Uygunluk ekleme başladı... (Bu işlem 30-60 saniye sürebilir)');
+
+    try {
+      const result = await addAvailabilityToAllShops();
+      if (result.success) {
+        toast.success(`✅ Başarılı! ${result.processedShops} işletme, ${result.totalAvailability} uygunluk kaydı eklendi!`);
+        checkCollections();
+      } else {
+        toast.error(`❌ Hata: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Uygunluk ekleme hatası:', error);
+      toast.error('Uygunluk ekleme sırasında hata oluştu: ' + error);
+    } finally {
+      setDataLoading(false);
+    }
+  };
+
   useEffect(() => {
     checkCollections();
   }, []);
@@ -390,6 +457,39 @@ const FirebaseDemo = () => {
                     {dataLoading ? '🔄 Sıfırlama İşlemi Devam Ediyor...' : '🔄 Sistemi Tamamen Sıfırla'}
                   </Button>
                   <p className="text-sm text-purple-600">Tüm verileri temizler, sonra 10 gerçek işletme oluşturur (En güvenli seçenek)</p>
+                </div>
+              </div>
+
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-orange-800 mb-2">🕐 Uygunluk İşlemleri</h3>
+                <div className="space-y-2">
+                  <Button
+                    onClick={handleTestAvailability}
+                    disabled={dataLoading}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    {dataLoading ? '🧪 Test Ediliyor...' : '🧪 Availability İzin Testi'}
+                  </Button>
+                  <Button
+                    onClick={handleAddOnlyAvailability}
+                    disabled={dataLoading}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white font-bold"
+                  >
+                    {dataLoading ? '🚀 SADECE Uygunluk Ekleniyor...' : '🚀 SADECE UYGUNLUK EKLE (Ultra Hızlı)'}
+                  </Button>
+                  <Button
+                    onClick={handleAddAvailability}
+                    disabled={dataLoading}
+                    className="w-full bg-orange-600 hover:bg-orange-700"
+                  >
+                    {dataLoading ? '🕐 Uygunluk Ekleniyor...' : '🕐 Personel+Hizmet+Uygunluk Ekle'}
+                  </Button>
+                  <p className="text-sm text-orange-600">
+                    <span className="block">🧪 1. Önce izin testini çalıştırın</span>
+                    <span className="block">🚀 2. SADECE UYGUNLUK EKLE butonunu kullanın (ÖNERİLEN)</span>
+                    <span className="block text-gray-500">🕐 3. Veya tam versiyon: Personel+Hizmet+Uygunluk</span>
+                  </p>
                 </div>
               </div>
 

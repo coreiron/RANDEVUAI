@@ -9,7 +9,8 @@ import {
   query,
   where,
   getDocs,
-  updateDoc
+  updateDoc,
+  deleteDoc
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { COLLECTIONS } from './schema';
@@ -1472,6 +1473,359 @@ export const simulateBusinessLogin = async (shopName: string) => {
 
   } catch (error) {
     console.error("❌ Error simulating business login:", error);
+    return {
+      success: false,
+      error: (error as Error).message
+    };
+  }
+};
+
+/**
+ * Tüm işletmelere 2 eleman, 2 hizmet ve tam uygunluk ekle (HIZLI VERSİYON)
+ */
+export const addAvailabilityToAllShops = async () => {
+  try {
+    console.log("🕐 Tüm işletmelere uygunluk ekleniyor... (Hızlı versiyon)");
+
+    // Firebase bağlantısını test et
+    console.log("🔥 Firebase bağlantısı test ediliyor...");
+    try {
+      const testQuery = await getDocs(query(collection(db, COLLECTIONS.SHOPS), where("isActive", "==", true)));
+      console.log(`✅ Firebase bağlantısı başarılı. ${testQuery.size} aktif işletme bulundu.`);
+    } catch (testError) {
+      console.error("❌ Firebase bağlantı testi başarısız:", testError);
+      return { success: false, error: "Firebase bağlantısı başarısız: " + testError };
+    }
+
+    // Tüm işletmeleri al
+    const shopsSnapshot = await getDocs(collection(db, COLLECTIONS.SHOPS));
+
+    if (shopsSnapshot.empty) {
+      console.log("❌ Hiç işletme bulunamadı!");
+      return { success: false, error: "Hiç işletme bulunamadı" };
+    }
+
+    let processedCount = 0;
+    let totalAvailabilityAdded = 0;
+
+    // Batch işlemler için
+    const BATCH_SIZE = 400; // Firestore batch limiti 500, güvenli marj bırakıyoruz
+    let currentBatch = writeBatch(db);
+    let batchCount = 0;
+
+    for (const shopDoc of shopsSnapshot.docs) {
+      const shopId = shopDoc.id;
+      const shopData = shopDoc.data();
+
+      console.log(`🏪 İşletme işleniyor: ${shopData.name}`);
+
+      // Paralel olarak mevcut personel ve hizmetleri al
+      const [existingStaffSnapshot, existingServicesSnapshot] = await Promise.all([
+        getDocs(query(collection(db, COLLECTIONS.STAFF), where("shopId", "==", shopId))),
+        getDocs(query(collection(db, COLLECTIONS.SERVICES), where("shopId", "==", shopId)))
+      ]);
+
+      const staffIds: string[] = [];
+      const serviceIds: string[] = [];
+
+      // Mevcut personel ID'lerini topla
+      existingStaffSnapshot.forEach(doc => staffIds.push(doc.id));
+
+      // Mevcut hizmet ID'lerini topla
+      existingServicesSnapshot.forEach(doc => serviceIds.push(doc.id));
+
+      // Eksik personelleri hızlıca ekle
+      const currentStaffCount = existingStaffSnapshot.size;
+      const staffNeeded = Math.max(0, 2 - currentStaffCount);
+
+      for (let i = 0; i < staffNeeded; i++) {
+        const staffRef = doc(collection(db, COLLECTIONS.STAFF));
+        currentBatch.set(staffRef, {
+          shopId: shopId,
+          name: `Personel ${currentStaffCount + i + 1}`,
+          title: `${shopData.category} Uzmanı`,
+          photoURL: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&h=300&fit=crop&crop=face",
+          workingHours: {
+            monday: { open: "09:00", close: "18:00" },
+            tuesday: { open: "09:00", close: "18:00" },
+            wednesday: { open: "09:00", close: "18:00" },
+            thursday: { open: "09:00", close: "18:00" },
+            friday: { open: "09:00", close: "18:00" },
+            saturday: { open: "09:00", close: "17:00" },
+            sunday: { open: "10:00", close: "16:00" }
+          },
+          isActive: true,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        staffIds.push(staffRef.id);
+        batchCount++;
+        console.log(`  ✅ Yeni personel hazırlandı: Personel ${currentStaffCount + i + 1}`);
+      }
+
+      // Eksik hizmetleri hızlıca ekle
+      const currentServicesCount = existingServicesSnapshot.size;
+      const servicesNeeded = Math.max(0, 2 - currentServicesCount);
+
+      const defaultServices = [
+        { name: "Genel Hizmet 1", duration: 60, price: 150 },
+        { name: "Genel Hizmet 2", duration: 90, price: 200 }
+      ];
+
+      for (let i = 0; i < servicesNeeded; i++) {
+        const serviceData = defaultServices[i] || {
+          name: `Hizmet ${currentServicesCount + i + 1}`,
+          duration: 60,
+          price: 100
+        };
+
+        const serviceRef = doc(collection(db, COLLECTIONS.SERVICES));
+        currentBatch.set(serviceRef, {
+          shopId: shopId,
+          name: serviceData.name,
+          duration: serviceData.duration,
+          price: serviceData.price,
+          category: shopData.category || "genel",
+          image: "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400&h=300&fit=crop",
+          isActive: true,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        serviceIds.push(serviceRef.id);
+        batchCount++;
+        console.log(`  ✅ Yeni hizmet hazırlandı: ${serviceData.name}`);
+      }
+
+      // Uygunluk verilerini hızlıca oluştur - daha az gün (30 gün)
+      const today = new Date();
+      const timeSlots = [];
+      // Zaman slotlarını sadece bir kez oluştur
+      for (let hour = 9; hour < 18; hour++) {
+        for (let minute = 0; minute < 60; minute += 30) {
+          const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+          timeSlots.push(timeString);
+        }
+      }
+
+      // Sadece 30 gün için uygunluk oluştur (60 gün çok yavaştı)
+      for (let dayOffset = 0; dayOffset < 30; dayOffset++) {
+        const availabilityDate = new Date(today);
+        availabilityDate.setDate(today.getDate() + dayOffset);
+        availabilityDate.setHours(0, 0, 0, 0);
+
+        // Her personel için uygunluk saatleri oluştur
+        for (const staffId of staffIds) {
+          // Batch'e uygunluk ekle - mevcut kontrol yapmadan (hız için)
+          const availabilityRef = doc(collection(db, COLLECTIONS.AVAILABILITY));
+          currentBatch.set(availabilityRef, {
+            shopId: shopId,
+            staffId: staffId,
+            date: Timestamp.fromDate(availabilityDate),
+            timeSlots: timeSlots,
+            bookedSlots: [], // Başlangıçta boş
+            isAvailable: true,
+            createdAt: serverTimestamp()
+          });
+          batchCount++;
+          totalAvailabilityAdded++;
+
+          // Batch limit kontrolü
+          if (batchCount >= BATCH_SIZE) {
+            console.log(`📦 Batch commit ediliyor (${batchCount} işlem)`);
+            await currentBatch.commit();
+            currentBatch = writeBatch(db);
+            batchCount = 0;
+          }
+        }
+      }
+
+      console.log(`  ✅ ${shopData.name} için uygunluk hazırlandı (${staffIds.length} personel, ${serviceIds.length} hizmet)`);
+      processedCount++;
+    }
+
+    // Son batch'i commit et
+    if (batchCount > 0) {
+      console.log(`📦 Son batch commit ediliyor (${batchCount} işlem)`);
+      await currentBatch.commit();
+    }
+
+    console.log(`🎉 Tamamlandı! ${processedCount} işletme, ${totalAvailabilityAdded} uygunluk kaydı eklendi.`);
+    return {
+      success: true,
+      processedShops: processedCount,
+      totalAvailability: totalAvailabilityAdded,
+      message: `${processedCount} işletme için 2 personel, 2 hizmet ve 30 gün uygunluk eklendi (${totalAvailabilityAdded} kayıt).`
+    };
+
+  } catch (error) {
+    console.error("❌ Uygunluk ekleme hatası:", error);
+    return {
+      success: false,
+      error: (error as Error).message
+    };
+  }
+};
+
+/**
+ * Basit availability test fonksiyonu
+ */
+export const testAvailabilityWrite = async () => {
+  try {
+    console.log("🧪 Availability yazma testi başlıyor...");
+
+    // Basit bir test kaydı oluştur
+    const testData = {
+      shopId: "test-shop",
+      staffId: "test-staff",
+      date: Timestamp.fromDate(new Date()),
+      timeSlots: ["09:00", "09:30", "10:00"],
+      bookedSlots: [],
+      isAvailable: true,
+      createdAt: serverTimestamp()
+    };
+
+    const testDoc = await addDoc(collection(db, COLLECTIONS.AVAILABILITY), testData);
+    console.log("✅ Test kaydı başarıyla oluşturuldu:", testDoc.id);
+
+    // Test kaydını sil
+    await deleteDoc(doc(db, COLLECTIONS.AVAILABILITY, testDoc.id));
+    console.log("✅ Test kaydı temizlendi");
+
+    return { success: true, message: "Availability yazma izni çalışıyor!" };
+  } catch (error) {
+    console.error("❌ Availability yazma testi başarısız:", error);
+    return { success: false, error: (error as Error).message };
+  }
+};
+
+/**
+ * SADECE TÜM İŞLETMELERE UYGUNLUK EKLE (Ultra Hızlı)
+ */
+export const addOnlyAvailabilityToShops = async () => {
+  try {
+    console.log("🕐 SADECE uygunluk ekleniyor... (Ultra hızlı versiyon)");
+
+    // Tüm işletmeleri ve personelleri hızlıca al
+    const [shopsSnapshot, allStaffSnapshot] = await Promise.all([
+      getDocs(collection(db, COLLECTIONS.SHOPS)),
+      getDocs(collection(db, COLLECTIONS.STAFF))
+    ]);
+
+    if (shopsSnapshot.empty) {
+      console.log("❌ Hiç işletme bulunamadı!");
+      return { success: false, error: "Hiç işletme bulunamadı" };
+    }
+
+    // Personelleri işletmeye göre grupla
+    const staffByShop = new Map<string, string[]>();
+    allStaffSnapshot.forEach(doc => {
+      const shopId = doc.data().shopId;
+      if (!staffByShop.has(shopId)) {
+        staffByShop.set(shopId, []);
+      }
+      staffByShop.get(shopId)!.push(doc.id);
+    });
+
+    // Zaman slotlarını hazırla (sadece bir kez)
+    const timeSlots = [];
+    for (let hour = 9; hour < 18; hour++) {
+      for (let minute = 0; minute < 60; minute += 30) {
+        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        timeSlots.push(timeString);
+      }
+    }
+
+    // Batch işlem için hazırlık
+    const BATCH_SIZE = 400;
+    let currentBatch = writeBatch(db);
+    let batchCount = 0;
+    let totalAvailabilityAdded = 0;
+
+    // Her işletme için
+    for (const shopDoc of shopsSnapshot.docs) {
+      const shopId = shopDoc.id;
+      const shopData = shopDoc.data();
+      const shopStaff = staffByShop.get(shopId) || [];
+
+      console.log(`🏪 ${shopData.name} - ${shopStaff.length} personel için uygunluk ekleniyor`);
+
+      // Eğer personel yoksa, önce 2 personel ekle
+      if (shopStaff.length === 0) {
+        for (let i = 1; i <= 2; i++) {
+          const staffRef = doc(collection(db, COLLECTIONS.STAFF));
+          currentBatch.set(staffRef, {
+            shopId: shopId,
+            name: `Personel ${i}`,
+            title: `${shopData.category || 'Genel'} Uzmanı`,
+            photoURL: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&h=300&fit=crop&crop=face",
+            workingHours: {
+              monday: { open: "09:00", close: "18:00" },
+              tuesday: { open: "09:00", close: "18:00" },
+              wednesday: { open: "09:00", close: "18:00" },
+              thursday: { open: "09:00", close: "18:00" },
+              friday: { open: "09:00", close: "18:00" },
+              saturday: { open: "09:00", close: "17:00" },
+              sunday: { open: "10:00", close: "16:00" }
+            },
+            isActive: true,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+          shopStaff.push(staffRef.id);
+          batchCount++;
+        }
+      }
+
+      // 30 gün için uygunluk oluştur
+      const today = new Date();
+      for (let dayOffset = 0; dayOffset < 30; dayOffset++) {
+        const availabilityDate = new Date(today);
+        availabilityDate.setDate(today.getDate() + dayOffset);
+        availabilityDate.setHours(0, 0, 0, 0);
+
+        // Her personel için uygunluk
+        for (const staffId of shopStaff) {
+          const availabilityRef = doc(collection(db, COLLECTIONS.AVAILABILITY));
+          currentBatch.set(availabilityRef, {
+            shopId: shopId,
+            staffId: staffId,
+            date: Timestamp.fromDate(availabilityDate),
+            timeSlots: timeSlots,
+            bookedSlots: [],
+            isAvailable: true,
+            createdAt: serverTimestamp()
+          });
+          batchCount++;
+          totalAvailabilityAdded++;
+
+          // Batch limiti kontrolü
+          if (batchCount >= BATCH_SIZE) {
+            console.log(`📦 Batch commit (${batchCount} işlem)...`);
+            await currentBatch.commit();
+            currentBatch = writeBatch(db);
+            batchCount = 0;
+          }
+        }
+      }
+    }
+
+    // Son batch'i commit et
+    if (batchCount > 0) {
+      console.log(`📦 Son batch commit (${batchCount} işlem)...`);
+      await currentBatch.commit();
+    }
+
+    console.log(`🎉 Tamamlandı! ${shopsSnapshot.size} işletme için ${totalAvailabilityAdded} uygunluk kaydı eklendi!`);
+
+    return {
+      success: true,
+      processedShops: shopsSnapshot.size,
+      totalAvailability: totalAvailabilityAdded,
+      message: `${shopsSnapshot.size} işletme için toplam ${totalAvailabilityAdded} uygunluk kaydı eklendi!`
+    };
+
+  } catch (error) {
+    console.error("❌ Uygunluk ekleme hatası:", error);
     return {
       success: false,
       error: (error as Error).message

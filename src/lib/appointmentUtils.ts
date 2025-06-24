@@ -8,6 +8,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { COLLECTIONS } from './firebase/schema';
+import { getAvailabilityByShopAndDate } from './services/availabilityService';
 
 // Örnek veri - gerçek uygulamada API'den veya Firestore'dan gelecek
 export const availableTimeSlots = {
@@ -82,28 +83,52 @@ export const getExistingAppointments = async (shopId: string, date?: Date) => {
 export const getAvailableTimesForDate = async (date: Date | undefined, shopId: string) => {
   if (!date) return [];
 
-  const dateStr = format(date, 'yyyy-MM-dd');
-
-  // Müsait saatleri al (şimdilik örnek veri)
-  const availableTimes = availableTimeSlots[dateStr as keyof typeof availableTimeSlots] || [];
-
   try {
-    // Aynı tarih ve işletmedeki randevuları al
+    console.log("🔍 Fetching availability for:", { shopId, date: format(date, 'yyyy-MM-dd') });
+
+    // Firebase'den gerçek availability verilerini çek
+    const availabilitySlots = await getAvailabilityByShopAndDate(shopId, date);
+    console.log("📊 Found availability slots:", availabilitySlots.length);
+
+    if (availabilitySlots.length === 0) {
+      console.log("⚠️ No availability slots found for this date");
+      return [];
+    }
+
+    // Tüm müsait zaman slotlarını topla
+    const allAvailableSlots: string[] = [];
+    availabilitySlots.forEach(slot => {
+      const timeSlots = slot.timeSlots || [];
+      const bookedSlots = slot.bookedSlots || [];
+
+      // Rezerve edilmemiş slotları ekle
+      const freeSlots = timeSlots.filter(time => !bookedSlots.includes(time));
+      allAvailableSlots.push(...freeSlots);
+    });
+
+    // Duplikat saatleri kaldır ve sırala
+    const uniqueSlots = [...new Set(allAvailableSlots)].sort();
+    console.log("✅ Available time slots:", uniqueSlots);
+
+    // Aynı tarih ve işletmedeki mevcut randevuları kontrol et
     const existingAppointments = await getExistingAppointments(shopId, date);
 
     // Dolu saatleri çıkar (iptal edilmiş randevular hariç)
     const bookedTimes = existingAppointments
-      .filter((app: any) => app.status !== 'canceled') // İptal edilmiş randevuları filtrele
+      .filter((app: any) => app.status !== 'canceled')
       .map((app: any) =>
         typeof app.date === 'object' && app.date.toDate
-          ? format(app.date.toDate(), 'HH:mm')  // Firestore Timestamp
-          : format(new Date(app.date), 'HH:mm') // Date string veya obj
+          ? format(app.date.toDate(), 'HH:mm')
+          : format(new Date(app.date), 'HH:mm')
       );
 
-    return availableTimes.filter(time => !bookedTimes.includes(time));
+    const finalAvailableSlots = uniqueSlots.filter(time => !bookedTimes.includes(time));
+    console.log("🎯 Final available slots after filtering appointments:", finalAvailableSlots);
+
+    return finalAvailableSlots;
   } catch (error) {
-    console.error("Error getting available times:", error);
-    return availableTimes; // Hata durumunda tüm saatleri döndür
+    console.error("❌ Error getting available times:", error);
+    return []; // Hata durumunda boş array döndür
   }
 };
 

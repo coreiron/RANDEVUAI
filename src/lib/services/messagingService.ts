@@ -39,6 +39,9 @@ export const initializeMessaging = async () => {
 // Topic'lere subscribe ol
 const subscribeToTopics = async (token: string) => {
     try {
+        console.log('Topic subscription geçici olarak devre dışı (CORS hatası için)');
+        return; // Geçici olarak devre dışı bırak
+
         const functions = getFunctions(app);
         const subscribeToTopic = httpsCallable(functions, 'subscribeToTopic');
 

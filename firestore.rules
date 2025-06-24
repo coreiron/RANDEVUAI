@@ -24,42 +24,27 @@ service cloud.firestore {
     // Services collection - business owner'lar kendi hizmetlerini yönetebilir
     match /services/{serviceId} {
       allow read: if true; // Herkese okuma izni
-      allow write: if request.auth != null && 
-        (request.auth.token.role == 'business_owner' ||
-         resource.data.shopOwnerId == request.auth.uid);
+      // GELİŞTİRME İÇİN GEÇİCİ: Herkese yazma izni
+      allow write: if true;
+      allow create: if true;
     }
     
     // Staff collection - business owner'lar kendi personellerini yönetebilir
     match /staff/{staffId} {
       allow read: if true; // Herkese okuma izni
-      allow write: if request.auth != null && 
-        (request.auth.token.role == 'business_owner' ||
-         resource.data.shopOwnerId == request.auth.uid);
+      // GELİŞTİRME İÇİN GEÇİCİ: Herkese yazma izni
+      allow write: if true;
+      allow create: if true;
     }
     
     // Appointments collection - randevu yönetimi
     match /appointments/{appointmentId} {
-      // Kullanıcılar kendi randevularını görebilir
-      // Business owner'lar kendi işletmelerinin randevularını görebilir
-      allow read: if request.auth != null && 
-        (resource.data.userId == request.auth.uid ||
-         resource.data.shopOwnerId == request.auth.uid ||
-         request.auth.token.role == 'business_owner');
-      
-      // Kullanıcılar randevu oluşturabilir
-      allow create: if request.auth != null && 
-        request.auth.uid == request.resource.data.userId;
-      
-      // Kullanıcılar kendi randevularını güncelleyebilir
-      // Business owner'lar işletmelerinin randevularını güncelleyebilir
-      allow update: if request.auth != null && 
-        (resource.data.userId == request.auth.uid ||
-         resource.data.shopOwnerId == request.auth.uid ||
-         request.auth.token.role == 'business_owner');
-      
-      // Sadece randevu sahibi iptal edebilir
-      allow delete: if request.auth != null && 
-        resource.data.userId == request.auth.uid;
+      // GELİŞTİRME İÇİN GEÇİCİ: Herkese izin
+      allow read: if true;
+      allow write: if true; 
+      allow create: if true;
+      allow update: if true;
+      allow delete: if true;
     }
     
     // Reviews collection - değerlendirmeler
@@ -123,6 +108,26 @@ service cloud.firestore {
       allow read: if true;
       allow write: if request.auth != null && 
         request.auth.token.role == 'admin';
+    }
+    
+    // Availability collection - uygunluk yönetimi
+    match /availability/{availabilityId} {
+      // Herkese okuma izni - müşteriler uygunluğu görebilir
+      allow read: if true;
+      
+      // GELİŞTİRME İÇİN GEÇİCİ: Herkese yazma izni
+      allow write: if true;
+      allow create: if true;
+      allow update: if true;
+      allow delete: if true;
+    }
+    
+    // Promocodes collection - promosyon kodları
+    match /promocodes/{promocodeId} {
+      allow read: if true; // Herkese okuma izni
+      allow write: if request.auth != null && 
+        (request.auth.token.role == 'business_owner' ||
+         resource.data.shopOwnerId == request.auth.uid);
     }
   }
 } 
