@@ -165,9 +165,36 @@ const UserAppointments: React.FC<UserAppointmentsProps> = ({ statusFilter = 'all
     }
   };
 
-  const formatAppointmentDate = (date: Date | string) => {
+  const formatAppointmentDate = (date: Date | string | any) => {
     if (!date) return '';
-    const appointmentDate = typeof date === 'string' ? new Date(date) : date;
+
+    let appointmentDate: Date;
+
+    // Firestore timestamp object (API'den gelirken)
+    if (date && typeof date === 'object' && date._seconds) {
+      appointmentDate = new Date(date._seconds * 1000);
+    }
+    // Firestore timestamp (backend'den gelirken)
+    else if (date?.toDate) {
+      appointmentDate = date.toDate();
+    }
+    // Timestamp object ise
+    else if (date?.seconds) {
+      appointmentDate = new Date(date.seconds * 1000);
+    }
+    // String ise
+    else if (typeof date === 'string') {
+      appointmentDate = new Date(date);
+    }
+    // Date object ise
+    else if (date instanceof Date) {
+      appointmentDate = date;
+    }
+    else {
+      console.warn('Unknown date format:', date);
+      return 'Geçersiz tarih';
+    }
+
     return format(appointmentDate, 'dd MMMM yyyy, EEEE', { locale: tr });
   };
 
@@ -192,6 +219,10 @@ const UserAppointments: React.FC<UserAppointmentsProps> = ({ statusFilter = 'all
 
     console.log("Navigating to shop:", shopId);
     navigate(`/shops/${shopId}`);
+  };
+
+  const handleAppointmentClick = (appointmentId: string) => {
+    navigate(`/appointments/${appointmentId}`);
   };
 
   const handleRetry = () => {
@@ -361,16 +392,26 @@ const UserAppointments: React.FC<UserAppointmentsProps> = ({ statusFilter = 'all
                     {appointment.price} TL
                   </p>
 
-                  {appointment.status !== 'canceled' && appointment.status !== 'completed' && (
+                  <div className="flex gap-2">
                     <Button
-                      variant="outline"
+                      variant="default"
                       size="sm"
-                      onClick={() => handleCancelAppointment(appointment.id)}
-                      className="text-red-600 hover:bg-red-50 border-red-200"
+                      onClick={() => handleAppointmentClick(appointment.id)}
                     >
-                      Randevuyu İptal Et
+                      Detaylar
                     </Button>
-                  )}
+
+                    {appointment.status !== 'canceled' && appointment.status !== 'completed' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleCancelAppointment(appointment.id)}
+                        className="text-red-600 hover:bg-red-50 border-red-200"
+                      >
+                        İptal Et
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

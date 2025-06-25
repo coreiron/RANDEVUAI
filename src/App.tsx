@@ -29,6 +29,7 @@ import Comments from './pages/Comments';
 import CategoryPage from './pages/CategoryPage';
 import ForgotPassword from './pages/ForgotPassword';
 import ConfirmAppointment from './pages/ConfirmAppointment';
+import AppointmentDetail from './pages/AppointmentDetail';
 import './App.css';
 
 function App() {
@@ -233,6 +234,7 @@ function App() {
           <Route path="services" element={<Shops />} />
           <Route path="services/:category" element={<CategoryPage />} />
           <Route path="appointments" element={<Appointments />} />
+          <Route path="appointments/:appointmentId" element={<AppointmentDetail />} />
           <Route path="favorites" element={<Favorites />} />
           <Route path="messages" element={<Messages />} />
           <Route path="notifications" element={<Notifications />} />

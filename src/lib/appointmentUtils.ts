@@ -1,4 +1,5 @@
 import { format, parse } from 'date-fns';
+import { tr } from 'date-fns/locale';
 import {
   collection,
   query,
@@ -141,4 +142,62 @@ export const formatDateForStorage = (date: Date) => {
 export const combineDateTime = (date: Date, timeString: string) => {
   const dateStr = format(date, 'yyyy-MM-dd');
   return parse(`${dateStr} ${timeString}`, 'yyyy-MM-dd HH:mm', new Date());
+};
+
+// Firestore timestamp'ını Date nesnesine çevir
+export const parseFirestoreDate = (date: any): Date => {
+  if (!date) return new Date();
+
+  // Firestore timestamp object (API'den gelirken)
+  if (date && typeof date === 'object' && date._seconds) {
+    return new Date(date._seconds * 1000);
+  }
+  // Firestore timestamp (backend'den gelirken)
+  else if (date?.toDate) {
+    return date.toDate();
+  }
+  // Timestamp object ise
+  else if (date?.seconds) {
+    return new Date(date.seconds * 1000);
+  }
+  // String ise
+  else if (typeof date === 'string') {
+    return new Date(date);
+  }
+  // Date object ise
+  else if (date instanceof Date) {
+    return date;
+  }
+  else {
+    console.warn('Unknown date format:', date);
+    return new Date();
+  }
+};
+
+// Randevu tarihini formatla
+export const formatAppointmentDate = (date: any): string => {
+  try {
+    const appointmentDate = parseFirestoreDate(date);
+    return format(appointmentDate, 'dd MMMM yyyy, EEEE', { locale: tr });
+  } catch (error) {
+    console.warn('Error formatting appointment date:', error);
+    return 'Geçersiz tarih';
+  }
+};
+
+// Randevu saatini formatla
+export const formatAppointmentTime = (date: any, time?: string): string => {
+  try {
+    // Eğer ayrı time alanı varsa onu kullan
+    if (time && typeof time === 'string' && time.match(/^\d{2}:\d{2}$/)) {
+      return time;
+    }
+
+    // Yoksa tarihten çıkar
+    const appointmentDate = parseFirestoreDate(date);
+    return format(appointmentDate, 'HH:mm');
+  } catch (error) {
+    console.warn('Error formatting appointment time:', error);
+    return '00:00';
+  }
 };

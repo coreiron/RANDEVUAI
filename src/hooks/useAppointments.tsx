@@ -109,15 +109,39 @@ export const useAppointments = () => {
             // Tarih formatlaması - daha güvenli yaklaşım
             let appointmentDate: Date;
 
+            console.log(`🔍 Processing date for ${appointment.id}:`, {
+              date: appointment.date,
+              dateType: typeof appointment.date,
+              time: appointment.time,
+              timeType: typeof appointment.time,
+              hasSeconds: appointment.date?.seconds,
+              hasToDate: appointment.date?.toDate
+            });
+
+            // Firestore timestamp object (API'den gelirken)
+            if (appointment.date && typeof appointment.date === 'object' && appointment.date._seconds) {
+              console.log(`🔥 Firestore timestamp object for ${appointment.id}`);
+              appointmentDate = new Date(appointment.date._seconds * 1000);
+            }
+            // Firestore timestamp (backend'den gelirken)
+            else if (appointment.date?.toDate) {
+              console.log(`🔥 Firestore timestamp with toDate for ${appointment.id}`);
+              appointmentDate = appointment.date.toDate();
+            }
+            // Timestamp object ise
+            else if (appointment.date?.seconds) {
+              console.log(`⏰ Timestamp object for ${appointment.id}`);
+              appointmentDate = new Date(appointment.date.seconds * 1000);
+            }
             // API'den gelen tarih string ise
-            if (typeof appointment.date === 'string') {
+            else if (typeof appointment.date === 'string') {
               console.log(`📅 Date is string for ${appointment.id}: ${appointment.date}`);
 
               // ISO formatında ise
               if (appointment.date.includes('T') || appointment.date.includes('Z')) {
                 appointmentDate = parseISO(appointment.date);
               } else {
-                // Eğer time alanı da varsa, date + time birleştir
+                // Sadece tarih varsa ve time alanı da varsa, birleştir
                 if (appointment.time && typeof appointment.time === 'string') {
                   const dateTimeString = `${appointment.date}T${appointment.time}:00`;
                   console.log(`🕐 Combined datetime for ${appointment.id}: ${dateTimeString}`);
@@ -127,25 +151,15 @@ export const useAppointments = () => {
                 }
               }
             }
-            // Firestore timestamp ise
-            else if (appointment.date?.toDate) {
-              console.log(`🔥 Firestore timestamp for ${appointment.id}`);
-              appointmentDate = appointment.date.toDate();
-            }
-            // Timestamp object ise
-            else if (appointment.date?.seconds) {
-              console.log(`⏰ Timestamp object for ${appointment.id}`);
-              appointmentDate = new Date(appointment.date.seconds * 1000);
-            }
             // Date object ise
             else if (appointment.date instanceof Date) {
               console.log(`📆 Date object for ${appointment.id}`);
               appointmentDate = appointment.date;
             }
-            // Hiçbiri değilse bugünün tarihi
+            // Hiçbiri değilse bugünün tarihi (bu durumda hata var)
             else {
-              console.warn(`⚠️ Unknown date format for ${appointment.id}, using current date`);
-              appointmentDate = new Date();
+              console.warn(`⚠️ Unknown date format for ${appointment.id}:`, appointment.date);
+              appointmentDate = new Date(); // Fallback olarak bugünün tarihi
             }
 
             // Tarih geçerli mi kontrol et
@@ -154,19 +168,29 @@ export const useAppointments = () => {
               appointmentDate = new Date(); // Fallback olarak bugünün tarihi
             }
 
-            console.log(`✅ Final date for ${appointment.id}:`, appointmentDate);
+            console.log(`✅ Final date for ${appointment.id}:`, {
+              originalDate: appointment.date,
+              parsedDate: appointmentDate,
+              formattedDate: format(appointmentDate, 'yyyy-MM-dd HH:mm')
+            });
 
             // Saat formatlaması - daha güvenli
             let timeString: string;
+
+            // Eğer backend'den ayrı time alanı geliyorsa önce onu kullan
             if (appointment.time && typeof appointment.time === 'string') {
               // Eğer time alanı zaten HH:mm formatında ise
               if (appointment.time.match(/^\d{2}:\d{2}$/)) {
                 timeString = appointment.time;
+                console.log(`⏰ Using separate time field for ${appointment.id}: ${timeString}`);
               } else {
                 timeString = format(appointmentDate, 'HH:mm', { locale: tr });
+                console.log(`⏰ Invalid time format, extracted from date for ${appointment.id}: ${timeString}`);
               }
             } else {
+              // Tarihten saat çıkar
               timeString = format(appointmentDate, 'HH:mm', { locale: tr });
+              console.log(`⏰ Extracted time from date for ${appointment.id}: ${timeString}`);
             }
 
             const formattedAppointment = {

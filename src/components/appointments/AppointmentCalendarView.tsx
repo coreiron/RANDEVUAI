@@ -15,9 +15,26 @@ const AppointmentCalendarView = () => {
   const { appointments, loading } = useAppointments();
 
   const getDayAppointments = (date: Date) => {
-    return appointments.filter(appointment => 
-      isSameDay(appointment.date, date)
-    );
+    return appointments.filter(appointment => {
+      let appointmentDate: Date;
+
+      // Tarih formatını düzelt
+      if (appointment.date && typeof appointment.date === 'object' && appointment.date._seconds) {
+        appointmentDate = new Date(appointment.date._seconds * 1000);
+      } else if (appointment.date?.toDate) {
+        appointmentDate = appointment.date.toDate();
+      } else if (appointment.date?.seconds) {
+        appointmentDate = new Date(appointment.date.seconds * 1000);
+      } else if (typeof appointment.date === 'string') {
+        appointmentDate = new Date(appointment.date);
+      } else if (appointment.date instanceof Date) {
+        appointmentDate = appointment.date;
+      } else {
+        return false;
+      }
+
+      return isSameDay(appointmentDate, date);
+    });
   };
 
   const getAppointmentsByStatus = (appointments: any[]) => {

@@ -17,14 +17,47 @@ interface AppointmentItemProps {
 const AppointmentItem: React.FC<AppointmentItemProps> = ({ appointment, onCancelClick, onRefresh }) => {
   const navigate = useNavigate();
 
-  const formatAppointmentDate = (date: Date) => {
-    return format(date, 'dd MMMM yyyy, EEEE', { locale: tr });
+  const formatAppointmentDate = (date: Date | any) => {
+    if (!date) return '';
+
+    let appointmentDate: Date;
+
+    // Firestore timestamp object (API'den gelirken)
+    if (date && typeof date === 'object' && date._seconds) {
+      appointmentDate = new Date(date._seconds * 1000);
+    }
+    // Firestore timestamp (backend'den gelirken)
+    else if (date?.toDate) {
+      appointmentDate = date.toDate();
+    }
+    // Timestamp object ise
+    else if (date?.seconds) {
+      appointmentDate = new Date(date.seconds * 1000);
+    }
+    // String ise
+    else if (typeof date === 'string') {
+      appointmentDate = new Date(date);
+    }
+    // Date object ise
+    else if (date instanceof Date) {
+      appointmentDate = date;
+    }
+    else {
+      console.warn('Unknown date format in AppointmentItem:', date);
+      return 'Geçersiz tarih';
+    }
+
+    return format(appointmentDate, 'dd MMMM yyyy, EEEE', { locale: tr });
   };
 
   const handleShopClick = () => {
     if (appointment.shopId) {
       navigate(`/shops/${appointment.shopId}`);
     }
+  };
+
+  const handleAppointmentClick = () => {
+    navigate(`/appointments/${appointment.id}`);
   };
 
   const handleStatusChange = (newStatus: string) => {
@@ -104,6 +137,15 @@ const AppointmentItem: React.FC<AppointmentItemProps> = ({ appointment, onCancel
 
             {/* Action Buttons */}
             <div className="flex flex-wrap gap-2">
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleAppointmentClick}
+                className="flex-1 md:flex-none"
+              >
+                Randevu Detayları
+              </Button>
+
               <Button
                 variant="outline"
                 size="sm"
